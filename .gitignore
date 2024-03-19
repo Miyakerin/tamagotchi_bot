@@ -10,6 +10,7 @@
 .idea/**/shelf
 
 .idea
+Lib
 
 # AWS User-specific
 .idea/**/aws.xml
@@ -287,3 +288,4 @@ cython_debug/
 /.idea/inspectionProfiles/profiles_settings.xml
 /.idea/modules.xml
 /.idea/misc.xml
+/pyvenv.cfg

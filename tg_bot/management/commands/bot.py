@@ -16,9 +16,10 @@ class Command(BaseCommand):
     help = 'Just a command for launching a Telegram bot.'
 
     def handle(self, *args, **kwargs):
-        print("Lets go")
+        print("Bot initiation started")
         bot.enable_save_next_step_handlers(delay=2) # Сохранение обработчиков
-        bot.load_next_step_handlers()				# Загрузка обработчиков
+        bot.load_next_step_handlers()		# Загрузка обработчиков
+        print("Bot initiation completed")
         bot.infinity_polling()
 
     @bot.message_handler(commands=['help', 'start'])
