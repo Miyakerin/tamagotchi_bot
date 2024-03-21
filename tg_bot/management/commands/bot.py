@@ -45,7 +45,13 @@ class Command(BaseCommand):
         user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
         if not TamagotchiInPossession.objects.filter(user_id=user).exists():
             tamagotchi = roll.create_tamagotchi()
-            tamagotchi_to_user = TamagotchiInPossession(tamagotchi=tamagotchi, user_id=user)
+            tamagotchi_to_user = TamagotchiInPossession(tamagotchi=tamagotchi,
+                                                        user_id=user,
+                                                        pogonyalo=tamagotchi.name,
+                                                        health=tamagotchi.max_health,
+                                                        thirst=tamagotchi.max_thirst,
+                                                        hunger=tamagotchi.max_hunger,
+                                                        happiness=tamagotchi.max_happiness)
             tamagotchi_to_user.save()
             bot.send_message(self.chat.id, f'Выпал тамагочи - {tamagotchi}')
         else:
