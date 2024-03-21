@@ -23,8 +23,11 @@ class Command(BaseCommand):
         bot.infinity_polling()
 
     @bot.message_handler(commands=['start'])
-    def send_welcome(message):
-        bot.reply_to(message, """\
-    Hi there, I am EchoBot.
-    I am here to echo your kind words back to you. Just say anything nice and I'll say the exact same thing to you!\
-    """)
+    def send_welcome(self):
+        tg_user_id = self.from_user.id
+        chat_id = self.chat.id
+        if not TgUser.objects.filter(telegram_user_id=tg_user_id):
+            tg_user = TgUser(telegram_user_id=tg_user_id, telegram_chat_id=chat_id, username=self.from_user.username)
+            tg_user.save()
+        bot.send_message(chat_id, f'Привет, {self.from_user.username},\nэто телеграм-бот, в котором ты можешь:'
+                                  f' выращивать своего питомца и ухаживать за ним')
