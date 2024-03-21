@@ -5,9 +5,9 @@ from django.contrib.auth.models import User
 
 
 class TgUser(models.Model):
-    id = models.UUIDField(primary_key=True, editable=True)
+    telegram_user_id = models.BigIntegerField()
+    telegram_chat_id = models.BigIntegerField()
     username = models.CharField(max_length=50)
-
 
     def __str__(self):
         return self.username
