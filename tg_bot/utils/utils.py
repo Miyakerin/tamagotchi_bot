@@ -103,3 +103,12 @@ class ManageUser:
         user.last_selected_tamagotchi = value
         user.save(update_fields=['last_selected_tamagotchi'])
 
+    @staticmethod
+    def set_is_tamagotchi_selected(user: TgUser, value: bool):
+        user.is_tamagotchi_selected = value
+        user.save(update_fields=['is_tamagotchi_selected'])
+
+    @staticmethod
+    def set_is_tamagotchi_renaming(user: TgUser, value: bool):
+        user.is_tamagotchi_renaming = value
+        user.save(update_fields=['is_tamagotchi_renaming'])

@@ -9,6 +9,8 @@ class TgUser(models.Model):
     last_page = models.CharField(max_length=50, default='main')
     max_tamagotchi = models.IntegerField(default=1)
     last_selected_tamagotchi = models.IntegerField(default='-1')
+    is_tamagotchi_selected = models.BooleanField(default=False)
+    is_tamagotchi_renaming = models.BooleanField(default=False)
 
     def __str__(self):
         return self.username

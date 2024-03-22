@@ -4,7 +4,6 @@ from django.core.management.base import BaseCommand
 from django.conf import settings
 from tg_bot.models import *
 
-
 from telebot import TeleBot
 from telebot.types import *
 
@@ -40,6 +39,7 @@ class Command(BaseCommand):
 
             ManageUser.set_last_page(tg_user, 'tamagotchi_page')
             ManageUser.set_last_tamagotchi(tg_user, int(call.data))
+            ManageUser.set_is_tamagotchi_selected(tg_user, True)
 
             tamagotchi = TamagotchiInPossession.objects.filter(id=int(call.data)).first()
 
@@ -68,6 +68,8 @@ class Command(BaseCommand):
         elif tg_user.last_page == 'inventory_page':
             pass
         elif tg_user.last_page == 'show_all_page':
+            ManageUser.set_is_tamagotchi_selected(tg_user, False)
+            ManageUser.set_is_tamagotchi_renaming(tg_user, False)
             Command.show_all_handler(self)
 
     @bot.message_handler(commands=['start'])  # handler команды /start, который регистрирует пользователя в бд
@@ -91,7 +93,8 @@ class Command(BaseCommand):
         bot.send_message(chat_id, f'Привет, {self.from_user.username},\nэто телеграм-бот, в котором ты можешь:'
                                   f' выращивать своего питомца и ухаживать за ним', reply_markup=markup)
 
-    @bot.message_handler(regexp=r'(?:\A/help|\AПомощь|\Ahelp_page)')  # handler команды /help, отправляет информацию о работе бота
+    @bot.message_handler(
+        regexp=r'(?:\A/help|\AПомощь|\Ahelp_page)')  # handler команды /help, отправляет информацию о работе бота
     def help_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
         ManageUser.set_last_page(tg_user, 'main')
@@ -115,14 +118,18 @@ class Command(BaseCommand):
     def show_all_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
         ManageUser.set_last_page(tg_user, 'main')
+
         user_tamagotchi = TamagotchiInPossession.objects.filter(user_id=tg_user)
 
         inline_markup = InlineKeyboardMarkup()
-        inline_markup.add(*map(lambda x: InlineKeyboardButton(x.pogonyalo, callback_data='user_tamagotchi; ' + str(x.id)), user_tamagotchi))
+        inline_markup.add(
+            *map(lambda x: InlineKeyboardButton(x.pogonyalo, callback_data='user_tamagotchi; ' + str(x.id)),
+                 user_tamagotchi))
 
         bot.send_message(self.chat.id, 'Твои тамагочи:\n', reply_markup=inline_markup)
 
-    @bot.message_handler(regexp=r'(?:\A/newpet|\AНовый тамагочи|\Anewpet_page)')  # handler команды /newpet, создает тамагочи
+    @bot.message_handler(
+        regexp=r'(?:\A/newpet|\AНовый тамагочи|\Anewpet_page)')  # handler команды /newpet, создает тамагочи
     def newpet_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
         ManageUser.set_last_page(tg_user, 'main')
@@ -145,15 +152,18 @@ class Command(BaseCommand):
     def change_pogonyalo_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
         ManageUser.set_last_page(tg_user, 'show_all_page')
+        ManageUser.set_is_tamagotchi_renaming(tg_user, True)
         bot.send_message(self.chat.id, "Дайте новое погоняло(разрешается только латиница и цифры)")
 
     @bot.message_handler(regexp=r"^[a-zA-Z0-9]+$", )
     def change_pogonyalo_check(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
-        if tg_user.last_page == 'show_all_page':
+        if tg_user.last_page == 'show_all_page' and tg_user.is_tamagotchi_selected and tg_user.is_tamagotchi_renaming:
             tamagotchi = TamagotchiInPossession.objects.filter(id=tg_user.last_selected_tamagotchi).first()
             if len(self.text) > 50:
                 bot.send_message(self.chat.id, "Ограничение на количество символов")
             if tamagotchi:
                 ManageTamagotchi.set_pogonyalo(tamagotchi, self.text)
+                ManageUser.set_is_tamagotchi_renaming(tg_user, False)
+                ManageUser.set_is_tamagotchi_selected(tg_user, False)
                 Command.show_all_handler(self)
