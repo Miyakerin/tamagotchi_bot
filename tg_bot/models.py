@@ -6,6 +6,9 @@ class TgUser(models.Model):
     telegram_user_id = models.BigIntegerField()
     telegram_chat_id = models.BigIntegerField()
     username = models.CharField(max_length=50)
+    last_page = models.CharField(max_length=50, default='main')
+    max_tamagotchi = models.IntegerField(default=1)
+    last_selected_tamagotchi = models.IntegerField(default='-1')
 
     def __str__(self):
         return self.username
@@ -58,6 +61,9 @@ class ItemInInventory(models.Model):
     quantity = models.IntegerField(default=1)
 
     def __str__(self):
+        return str(self.item) + ": " + str(self.quantity)
+
+    def __repr__(self):
         return str(self.item) + ": " + str(self.user_id)
 
 
@@ -72,4 +78,7 @@ class TamagotchiInPossession(models.Model):
     is_alive = models.BooleanField(default=True)
 
     def __str__(self):
+        return self.pogonyalo
+
+    def __repr__(self):
         return str(self.tamagotchi) + ": " + str(self.user_id)
