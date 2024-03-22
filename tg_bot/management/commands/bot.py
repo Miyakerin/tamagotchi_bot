@@ -162,7 +162,7 @@ class Command(BaseCommand):
             tamagotchi = TamagotchiInPossession.objects.filter(id=tg_user.last_selected_tamagotchi).first()
             if len(self.text) > 50:
                 bot.send_message(self.chat.id, "Ограничение на количество символов")
-            if tamagotchi:
+            elif tamagotchi:
                 ManageTamagotchi.set_pogonyalo(tamagotchi, self.text)
                 ManageUser.set_is_tamagotchi_renaming(tg_user, False)
                 ManageUser.set_is_tamagotchi_selected(tg_user, False)
