@@ -3,14 +3,16 @@ from django.contrib.auth.models import User
 
 
 class TgUser(models.Model):
-    telegram_user_id = models.BigIntegerField()
-    telegram_chat_id = models.BigIntegerField()
+    telegram_user_id = models.BigIntegerField(default=-1)
     username = models.CharField(max_length=50)
+
+    last_message = models.BigIntegerField(default=-1)
     last_page = models.CharField(max_length=50, default='main')
     max_tamagotchi = models.IntegerField(default=1)
     last_selected_tamagotchi = models.IntegerField(default='-1')
     is_tamagotchi_selected = models.BooleanField(default=False)
-    is_tamagotchi_renaming = models.BooleanField(default=False)
+    last_selected_item = models.IntegerField(default='-1')
+    is_item_selected = models.BooleanField(default=False)
 
     def __str__(self):
         return self.username
@@ -55,6 +57,37 @@ class Tamagotchi(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class Action(models.Model):
+    name = models.CharField(max_length=50)
+
+    def __str__(self):
+        return str(self.name)
+
+
+class Task(models.Model):
+    name = models.CharField(max_length=50)
+    time_need_minutes = models.IntegerField(default=0)
+
+    def __str__(self):
+        return str(self.name)
+
+
+class ItemsForAction(models.Model):
+    action = models.ForeignKey(Action, on_delete=models.CASCADE)
+    item = models.ForeignKey(Item, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f'{self.action}: {self.item}'
+
+
+class RewardForTask(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE)
+    item = models.ForeignKey(Item, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f'{self.task}: {self.item}'
 
 
 class ItemInInventory(models.Model):

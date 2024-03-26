@@ -8,9 +8,10 @@ from telebot import TeleBot
 from telebot.types import *
 
 import re
+import json
 
 bot = TeleBot(settings.TELEGRAM_BOT_API_KEY, threaded=False)
-allpages = r'(?:\A/back|\AНазад|\Aback' \
+all_pages = r'(?:\A/back|\AНазад|\Aback' \
            r'|A/start' \
            r'|\A/help|\AПомощь|\Ahelp_page' \
            r'|\A/tamagotchi|\AТамагочи|\Atamagotchi_page' \
@@ -26,113 +27,126 @@ class Command(BaseCommand):
         bot.load_next_step_handlers()  # Загрузка обработчиков
 
         bot.set_my_commands([BotCommand(command="/start", description="Запускает бота и отправляет приветствие"),
-                             BotCommand(command="/help", description="Полезная информация о работе бота"),
-                             BotCommand(command="/newpet", description="Создает тамагочи")])
+                             BotCommand(command="/help", description="Полезная информация о работе бота")])
         print("Bot initiation completed")
         bot.infinity_polling()
 
     @bot.callback_query_handler(func=lambda call: True)
-    def callback_handler(call):
-        tg_user = TgUser.objects.filter(telegram_user_id=call.from_user.id).first()
-        if re.match(r'user_tamagotchi; \d+', call.data):
-            call.data = re.sub(r'user_tamagotchi; ', '', call.data)
+    def callback_handler(self):
+        tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        json_data = json.loads(self.data)
+        if json_data.get('user_tamagotchi'):
+            message, is_alive = CallbackHandlers.choose_tamagotchi(json_data.get('user_tamagotchi'), tg_user)
+            markup = KeyBoardsTemplate.tamagotchi_choose_one_reply(is_alive)
+        elif json_data.get('user_item'):
+            message = CallbackHandlers.choose_item(json_data.get('user_item'), tg_user)
+            markup = KeyBoardsTemplate.inventory_choose_one_reply()
+        elif json_data.get('user_item_use'):
+            markup = KeyBoardsTemplate.action_reply()
+            CallbackHandlers.use_item(json_data.get('user_item_use'), tg_user)
+            message = "Предмет использован"
+        else:
+            print(self.data)
+            message = 'callback error'
+            markup = KeyBoardsTemplate.main_reply()
 
-            ManageUser.set_last_page(tg_user, 'tamagotchi_page')
-            ManageUser.set_last_tamagotchi(tg_user, int(call.data))
-            ManageUser.set_is_tamagotchi_selected(tg_user, True)
-
-            tamagotchi = TamagotchiInPossession.objects.filter(id=int(call.data)).first()
-
-            markup = ReplyKeyboardMarkup(resize_keyboard=True)
-            markup.add('Дать новое погоняло')
-            markup.row('Назад')
-            message = f'Показатели:\n' \
-                      f'Название - {tamagotchi.tamagotchi.name}\n' \
-                      f'Погоняло - {tamagotchi.pogonyalo}\n' \
-                      f'Редкость - {tamagotchi.tamagotchi.rarity}\n' \
-                      f'Элемент - {tamagotchi.tamagotchi.element}\n' \
-                      f'Здоровье - {tamagotchi.health}\{tamagotchi.tamagotchi.max_health}\n' \
-                      f'Голод - {tamagotchi.hunger}\{tamagotchi.tamagotchi.max_hunger}\n' \
-                      f'Жажда - {tamagotchi.thirst}\{tamagotchi.tamagotchi.max_thirst}\n' \
-                      f'Счастье - {tamagotchi.happiness}\{tamagotchi.tamagotchi.max_happiness}'
-
-            bot.send_message(call.from_user.id, message, reply_markup=markup)
+        bot.send_message(self.from_user.id, message, reply_markup=markup)
 
     @bot.message_handler(regexp=r'(?:\A/back|\AНазад|\Aback)')
     def back_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.set_is_tamagotchi_selected(tg_user, False)
+        ManageUser.set_is_item_selected(tg_user, False)
         if tg_user.last_page == 'main':
-            Command.send_welcome(self)
+            Command.start_page_handler(self)
         elif tg_user.last_page == 'tamagotchi_page':
             Command.tamagotchi_page_handler(self)
         elif tg_user.last_page == 'inventory_page':
-            pass
+            Command.inventory_page_handler(self)
         elif tg_user.last_page == 'show_all_page':
-            ManageUser.set_is_tamagotchi_selected(tg_user, False)
-            ManageUser.set_is_tamagotchi_renaming(tg_user, False)
             Command.show_all_handler(self)
+        elif tg_user.last_page == 'show_inventory_page':
+            Command.show_inventory_page_handler(self)
 
     @bot.message_handler(commands=['start'])  # handler команды /start, который регистрирует пользователя в бд
-    def send_welcome(self):
+    def start_page_handler(self):
         tg_user_id = self.from_user.id
         chat_id = self.chat.id
-
-        markup = ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add('Тамагочи', 'Инвентарь', 'Помощь')
-
         if not TgUser.objects.filter(telegram_user_id=tg_user_id).exists():  # проверка существования пользователя в бд
             tg_user = TgUser(telegram_user_id=tg_user_id,
-                             telegram_chat_id=chat_id,
                              username=self.from_user.username,
                              last_page='main')
             tg_user.save()
 
         tg_user = TgUser.objects.filter(telegram_user_id=tg_user_id).first()
         ManageUser.set_last_page(tg_user, 'main')
+        ManageUser.set_is_tamagotchi_selected(tg_user, False)  # необходимое зло
+        ManageUser.set_is_item_selected(tg_user, False)
 
-        bot.send_message(chat_id, f'Привет, {self.from_user.username},\nэто телеграм-бот, в котором ты можешь:'
-                                  f' выращивать своего питомца и ухаживать за ним', reply_markup=markup)
+        message = f'Привет, {self.from_user.username},\nэто телеграм-бот, в котором ты можешь: ' \
+                  f'выращивать своего питомца и ухаживать за ним'
+        bot.send_message(chat_id, message, reply_markup=KeyBoardsTemplate.main_reply())
 
     @bot.message_handler(
         regexp=r'(?:\A/help|\AПомощь|\Ahelp_page)')  # handler команды /help, отправляет информацию о работе бота
     def help_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
         ManageUser.set_last_page(tg_user, 'main')
+        ManageUser.set_is_tamagotchi_selected(tg_user, False)  # необходимое зло
+        ManageUser.set_is_item_selected(tg_user, False)
 
-        markup = ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add('Назад')
+        message = 'Бот создан командой FTM, текущая версия v0.1'
+        bot.send_message(self.chat.id, message, reply_markup=KeyBoardsTemplate.help_reply())
 
-        bot.send_message(self.chat.id, 'Бот создан командой FTM, текущая версия v0.1', reply_markup=markup)
-
-    @bot.message_handler(regexp=r'(?:\A/tamagotchi|\AТамагочи|\Atamagotchi_page)')
+    # handlers of main page btns
+    @bot.message_handler(regexp=r'(?:\AТамагочи|\Atamagotchi_page)')
     def tamagotchi_page_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
         ManageUser.set_last_page(tg_user, 'main')
+        ManageUser.set_is_tamagotchi_selected(tg_user, False)  # необходимое зло
+        ManageUser.set_is_item_selected(tg_user, False)
 
-        markup = ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add('Посмотреть всех', 'Новый тамагочи', 'Назад')
+        message = 'Выбери опцию:'
+        bot.send_message(self.chat.id, message, reply_markup=KeyBoardsTemplate.tamagotchi_main_reply())
 
-        bot.send_message(self.chat.id, 'Выбери опцию:', reply_markup=markup)
+    @bot.message_handler(regexp=r'(?:\AИнвентарь|\Ainventory_page)')
+    def inventory_page_handler(self):
+        tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.set_last_page(tg_user, 'main')
+        ManageUser.set_is_tamagotchi_selected(tg_user, False)  # необходимое зло
+        ManageUser.set_is_item_selected(tg_user, False)
 
-    @bot.message_handler(regexp=r'(?:\A/show_all|\AПосмотреть всех|\Ashow_all_page)')
+        message = 'Выбери опцию:'
+        bot.send_message(self.chat.id, message, reply_markup=KeyBoardsTemplate.inventory_main_reply())
+
+    # handlers of tamagotchi page btns
+
+    @bot.message_handler(regexp=r'(?:\AПосмотреть всех|\Ashow_all_page)')
     def show_all_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
         ManageUser.set_last_page(tg_user, 'main')
+        ManageUser.set_is_tamagotchi_selected(tg_user, False)  # необходимое зло
+        ManageUser.set_is_item_selected(tg_user, False)
 
         user_tamagotchi = TamagotchiInPossession.objects.filter(user_id=tg_user)
+        if user_tamagotchi.exists():
+            message = 'Твои тамагочи:\n'
+        else:
+            message = 'У тебя пока нет тамагочи'
 
-        inline_markup = InlineKeyboardMarkup()
-        inline_markup.add(
-            *map(lambda x: InlineKeyboardButton(x.pogonyalo, callback_data='user_tamagotchi; ' + str(x.id)),
-                 user_tamagotchi))
-
-        bot.send_message(self.chat.id, 'Твои тамагочи:\n', reply_markup=inline_markup)
+        bot.send_message(self.chat.id,
+                         message,
+                         reply_markup=KeyBoardsTemplate.tamagotchi_show_all_inline(user_tamagotchi))
 
     @bot.message_handler(
-        regexp=r'(?:\A/newpet|\AНовый тамагочи|\Anewpet_page)')  # handler команды /newpet, создает тамагочи
+        regexp=r'(?:\AНовый тамагочи|\Anewpet_page)')  # handler команды /newpet, создает тамагочи
     def newpet_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
         ManageUser.set_last_page(tg_user, 'main')
+        ManageUser.set_is_tamagotchi_selected(tg_user, False)  # необходимое зло
+        ManageUser.set_is_item_selected(tg_user, False)
+
+        message = 'У вас слишком много тамагочи'
 
         if TamagotchiInPossession.objects.filter(user_id=tg_user).count() < tg_user.max_tamagotchi:
             tamagotchi = Roll.create_tamagotchi()
@@ -144,26 +158,151 @@ class Command(BaseCommand):
                                                         hunger=tamagotchi.max_hunger,
                                                         happiness=tamagotchi.max_happiness)
             tamagotchi_to_user.save()
-            bot.send_message(self.chat.id, f'Выпал тамагочи - {tamagotchi}')
-        else:
-            bot.send_message(self.chat.id, f'У вас уже есть тамагочи=(')
+            message = f'Выпал тамагочи - {tamagotchi}'
 
-    @bot.message_handler(regexp=r'(?:\A/change_pogonyalo|\AДать новое погоняло|\Achange_pogonyalo_page)')
+        bot.send_message(self.chat.id, message, reply_markup=KeyBoardsTemplate.tamagotchi_main_reply())
+
+    # handlers of choose tamagotchi page btns
+    @bot.message_handler(regexp=r'(?:\AВоскресить|\Aresurrect_page)') # handler воскрешения
+    def resurrect_page_handler(self):
+        tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.set_last_page(tg_user, 'show_all_page')
+        ManageUser.set_is_item_selected(tg_user, False)
+
+        tamagotchi = TamagotchiInPossession.objects.filter(id=tg_user.last_selected_tamagotchi).first()
+        user_inventory = ItemInInventory.objects.filter(user_id=tg_user)
+
+        # hardcoded id4 for resurrection
+        item = user_inventory.filter(item_id=4).first()
+        if not tamagotchi.is_alive and item.quantity > 0 and tg_user.is_tamagotchi_selected:
+            ManageTamagotchi.set_is_alive(tamagotchi, True)
+            ManageTamagotchi.set_health(tamagotchi, tamagotchi.tamagotchi.max_health)
+            ManageInventory.update_quantity(item, -1)
+            message = f'{str(tamagotchi)} воскрешен'
+        elif tamagotchi.is_alive:
+            message = 'Ваш тамагочи жив'
+        elif item.quantity <= 0 or not item:
+            message = 'Не хватает Scroll of resurrection'
+        else:
+            message = "error"
+
+        ManageUser.set_is_tamagotchi_selected(tg_user, False)
+
+        bot.send_message(self.chat.id, message, reply_markup=KeyBoardsTemplate.tamagotchi_main_reply())
+        Command.show_all_handler(self)
+
+    @bot.message_handler(regexp=r'(?:\AДействия|\Aactions_page)')
+    def actions_page_handler(self):
+        tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.set_last_page(tg_user, 'tamagotchi_page')
+        ManageUser.set_is_item_selected(tg_user, False)
+
+        message = 'Доступные действия:'
+        bot.send_message(self.chat.id, message, reply_markup=KeyBoardsTemplate.action_reply())
+
+    @bot.message_handler(regexp=r'(?:\AНакормить|\Afeed_page)')
+    def feed_page_handler(self):
+        tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.set_last_page(tg_user, 'tamagotchi_page')
+        ManageUser.set_is_item_selected(tg_user, False)
+
+        user_inventory = ItemInInventory.objects.filter(user_id=tg_user).filter(
+            item__hunger_on_consume__range=(1, 1000))
+
+        message = 'Выберите предмет:'
+        bot.send_message(self.chat.id, message, reply_markup=KeyBoardsTemplate.action_inline(user_inventory))
+
+    @bot.message_handler(regexp=r'(?:\AЛечить|\Aheal_page)')
+    def health_page_handler(self):
+        tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.set_last_page(tg_user, 'tamagotchi_page')
+        ManageUser.set_is_item_selected(tg_user, False)
+
+        user_inventory = ItemInInventory.objects.filter(user_id=tg_user).filter(
+            item__health_on_consume__range=(1, 1000))
+
+        message = 'Выберите предмет:'
+        bot.send_message(self.chat.id, message, reply_markup=KeyBoardsTemplate.action_inline(user_inventory))
+
+    @bot.message_handler(regexp=r'(?:\AНапоить|\Athirst_page)')
+    def thirst_page_handler(self):
+        tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.set_last_page(tg_user, 'tamagotchi_page')
+        ManageUser.set_is_item_selected(tg_user, False)
+
+        user_inventory = ItemInInventory.objects.filter(user_id=tg_user).filter(
+            item__thirst_on_consume__range=(1, 1000))
+
+        message = 'Выберите предмет:'
+        bot.send_message(self.chat.id, message, reply_markup=KeyBoardsTemplate.action_inline(user_inventory))
+
+    @bot.message_handler(regexp=r'(?:\AПовеселить|\Afun_page)')
+    def fun_page_handler(self):
+        tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.set_last_page(tg_user, 'tamagotchi_page')
+        ManageUser.set_is_item_selected(tg_user, False)
+
+        user_inventory = ItemInInventory.objects.filter(user_id=tg_user).filter(
+            item__happiness_on_consume__range=(1, 1000))
+
+        message = 'Выберите предмет:'
+        bot.send_message(self.chat.id, message, reply_markup=KeyBoardsTemplate.action_inline(user_inventory))
+
+
+    # handlers of inventory page btns
+    @bot.message_handler(regexp=r'(?:\AПосмотреть инвентарь|\Ashow_inventory_page)') # handler инвентаря
+    def show_inventory_page_handler(self):
+        tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.set_last_page(tg_user, 'main')
+        ManageUser.set_is_tamagotchi_selected(tg_user, False)
+        ManageUser.set_is_item_selected(tg_user, False)
+
+        user_inventory = ItemInInventory.objects.filter(user_id=tg_user)
+
+        if user_inventory.exists():
+            message = 'Инвентарь:'
+        else:
+            message = 'В инвентаре пусто'
+
+        bot.send_message(self.chat.id,
+                         message,
+                         reply_markup=KeyBoardsTemplate.inventory_show_all_inline(user_inventory))
+
+    # handlers of choose item page btns
+    @bot.message_handler(regexp=r'(?:\AУдалить|\Adelete_item_page)') # handler удаления предмета
+    def delete_item_page_handler(self):
+        tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.set_last_page(tg_user, 'show_inventory_page')
+
+        if tg_user.is_item_selected:
+            ItemInInventory.objects.filter(id=tg_user.last_selected_item).delete()
+            message = 'Предмет удален'
+        else:
+            message = ''
+
+        bot.send_message(self.chat.id,
+                         message,
+                         reply_markup=KeyBoardsTemplate.inventory_main_reply())
+        Command.show_inventory_page_handler(self)
+
+
+
+    # other
+
+    @bot.message_handler(regexp=r'(?:\AДать новое погоняло|\Achange_pogonyalo_page)')
     def change_pogonyalo_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
         ManageUser.set_last_page(tg_user, 'show_all_page')
-        ManageUser.set_is_tamagotchi_renaming(tg_user, True)
         bot.send_message(self.chat.id, "Дайте новое погоняло(разрешается только латиница и цифры)")
 
     @bot.message_handler(regexp=r"^[a-zA-Z0-9]+$", )
     def change_pogonyalo_check(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
-        if tg_user.last_page == 'show_all_page' and tg_user.is_tamagotchi_selected and tg_user.is_tamagotchi_renaming:
+        if tg_user.last_page == 'show_all_page' and tg_user.is_tamagotchi_selected:
             tamagotchi = TamagotchiInPossession.objects.filter(id=tg_user.last_selected_tamagotchi).first()
             if len(self.text) > 50:
                 bot.send_message(self.chat.id, "Ограничение на количество символов")
             elif tamagotchi:
                 ManageTamagotchi.set_pogonyalo(tamagotchi, self.text)
-                ManageUser.set_is_tamagotchi_renaming(tg_user, False)
                 ManageUser.set_is_tamagotchi_selected(tg_user, False)
                 Command.show_all_handler(self)
