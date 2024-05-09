@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from django.db import models
 from django.contrib.auth.models import User
 
@@ -13,6 +15,7 @@ class TgUser(models.Model):
     is_tamagotchi_selected = models.BooleanField(default=False)
     last_selected_item = models.IntegerField(default='-1')
     is_item_selected = models.BooleanField(default=False)
+    last_selected_task = models.IntegerField(default=-1)
 
     def __str__(self):
         return self.username
@@ -85,9 +88,10 @@ class ItemsForAction(models.Model):
 class RewardForTask(models.Model):
     task = models.ForeignKey(Task, on_delete=models.CASCADE)
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
+    quantity = models.IntegerField(default=1)
 
     def __str__(self):
-        return f'{self.task}: {self.item}'
+        return f'{self.task}: {self.item}: {self.quantity}'
 
 
 class ItemInInventory(models.Model):
@@ -111,6 +115,9 @@ class TamagotchiInPossession(models.Model):
     thirst = models.IntegerField(default=100)
     happiness = models.IntegerField(default=100)
     is_alive = models.BooleanField(default=True)
+    is_busy = models.BooleanField(default=False)
+    task_started_at = models.DateTimeField(default=datetime.now(tz=timezone.utc))
+    current_task = models.ForeignKey(Task, on_delete=models.CASCADE, null=True)
 
     def __str__(self):
         return self.pogonyalo

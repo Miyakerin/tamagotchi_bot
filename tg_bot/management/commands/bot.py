@@ -1,3 +1,5 @@
+from datetime import timezone, timedelta
+
 from tg_bot.utils.utils import *
 
 from django.core.management.base import BaseCommand
@@ -43,8 +45,14 @@ class Command(BaseCommand):
             markup = KeyBoardsTemplate.inventory_choose_one_reply()
         elif json_data.get('user_item_use'):
             markup = KeyBoardsTemplate.action_reply()
-            CallbackHandlers.use_item(json_data.get('user_item_use'), tg_user)
-            message = "Предмет использован"
+            response = CallbackHandlers.use_item(json_data.get('user_item_use'), tg_user)
+            if response:
+                message = "Предмет использован"
+            else:
+                message = "Не получилось использовать предмет"
+        elif json_data.get('user_task'):
+            markup = KeyBoardsTemplate.choose_task_reply()
+            message = CallbackHandlers.choose_task(json_data.get('user_task'), tg_user)
         else:
             print(self.data)
             message = 'callback error'
@@ -67,6 +75,8 @@ class Command(BaseCommand):
             Command.show_all_handler(self)
         elif tg_user.last_page == 'show_inventory_page':
             Command.show_inventory_page_handler(self)
+        elif tg_user.last_page == 'tasks_page':
+            Command.tamagotchi_page_handler(self)
 
     @bot.message_handler(commands=['start'])  # handler команды /start, который регистрирует пользователя в бд
     def start_page_handler(self):
@@ -117,6 +127,36 @@ class Command(BaseCommand):
         ManageUser.set_is_item_selected(tg_user, False)
 
         message = 'Выбери опцию:'
+        bot.send_message(self.chat.id, message, reply_markup=KeyBoardsTemplate.inventory_main_reply())
+
+    @bot.message_handler(regexp=r'(?:\AЗабрать награды|\Atake_rewards)')
+    def take_rewards_handler(self):
+        tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.set_last_page(tg_user, 'main')
+        ManageUser.set_is_item_selected(tg_user, False)
+        ManageUser.set_is_item_selected(tg_user, False)
+
+        user_tamagotchis = TamagotchiInPossession.objects.filter(user_id=tg_user).all()
+        message = 'Наград еще нет'
+        for tamagotchi in user_tamagotchis:
+            if tamagotchi.is_busy:
+                end_time = tamagotchi.task_started_at + timedelta(minutes=tamagotchi.current_task.time_need_minutes)
+                if end_time < datetime.now(tz=timezone.utc):
+
+                    message = 'Награды начислены'
+                    rewards = RewardForTask.objects.filter(task=tamagotchi.current_task).all()
+                    for task_reward in rewards:
+                        check = ManageInventory.check_if_item_in_inventory(task_reward.item, tg_user)
+                        if check:
+                            ManageInventory.update_quantity(check, task_reward.quantity)
+                        else:
+                            user_item = ItemInInventory(item=task_reward.item,
+                                                        user_id=tg_user,
+                                                        quantity=task_reward.quantity)
+                            user_item.save()
+                    ManageTamagotchi.set_is_busy(tamagotchi, False)
+                    ManageTamagotchi.set_current_task(tamagotchi, None)
+
         bot.send_message(self.chat.id, message, reply_markup=KeyBoardsTemplate.inventory_main_reply())
 
     # handlers of tamagotchi page btns
@@ -199,6 +239,36 @@ class Command(BaseCommand):
 
         message = 'Доступные действия:'
         bot.send_message(self.chat.id, message, reply_markup=KeyBoardsTemplate.action_reply())
+
+    @bot.message_handler(regexp=r'(?:\AЗадачи|\Atasks_page)')
+    def tasks_page_handler(self):
+        tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.set_last_page(tg_user, 'tasks_page')
+        ManageUser.set_is_item_selected(tg_user, False)
+
+        message = 'Доступные задачи:'
+        bot.send_message(self.chat.id, message, reply_markup=KeyBoardsTemplate.tasks_reply())
+
+    @bot.message_handler(regexp=r'(?:\AОтправить на задание|\Asend_on_task_page)')
+    def send_on_task_page_handler(self):
+        tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.set_last_page(tg_user, 'tasks_page')
+        ManageUser.set_is_item_selected(tg_user, False)
+
+        task = Task.objects.filter(id=tg_user.last_selected_task).first()
+        tamagotchi = TamagotchiInPossession.objects.filter(id=tg_user.last_selected_tamagotchi).first()
+        if task and tamagotchi and tamagotchi.is_busy is False:
+            ManageTamagotchi.set_is_busy(tamagotchi, True)
+            ManageTamagotchi.set_task_started_at(tamagotchi, datetime.now(tz=timezone.utc))
+            ManageTamagotchi.set_current_task(tamagotchi, task)
+            message = 'Задача успешно поставлена'
+        else:
+            message = 'Не удалось присвоить задачу для тамагочи'
+
+        ManageUser.set_is_tamagotchi_selected(tg_user, False)
+        bot.send_message(self.chat.id, message, reply_markup=KeyBoardsTemplate.tamagotchi_main_reply())
+
+
 
     @bot.message_handler(regexp=r'(?:\AНакормить|\Afeed_page)')
     def feed_page_handler(self):

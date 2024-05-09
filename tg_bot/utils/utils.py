@@ -53,6 +53,13 @@ class ManageInventory:
         else:
             item.delete()
 
+    @staticmethod
+    def check_if_item_in_inventory(item: Item, user: TgUser):
+        if ItemInInventory.objects.filter(user_id=user).filter(item=item).exists():
+            return ItemInInventory.objects.filter(user_id=user).filter(item=item).first()
+        else:
+            return False
+
 
 class ManageTamagotchi:
     def __init__(self):
@@ -89,6 +96,11 @@ class ManageTamagotchi:
         tamagotchi.save(update_fields=['is_alive'])
 
     @staticmethod
+    def set_is_busy(tamagotchi: TamagotchiInPossession, value: bool):
+        tamagotchi.is_busy = value
+        tamagotchi.save(update_fields=['is_busy'])
+
+    @staticmethod
     def update_hunger(tamagotchi: TamagotchiInPossession, value: int):
         max_hunger = tamagotchi.tamagotchi.max_hunger
         tamagotchi.hunger = min(value+tamagotchi.hunger, max_hunger)
@@ -111,6 +123,16 @@ class ManageTamagotchi:
         max_happiness = tamagotchi.tamagotchi.max_happiness
         tamagotchi.happiness = min(value+tamagotchi.happiness, max_happiness)
         tamagotchi.save(update_fields=['happiness'])
+
+    @staticmethod
+    def set_task_started_at(tamagotchi: TamagotchiInPossession, value: datetime):
+        tamagotchi.task_started_at = value
+        tamagotchi.save(update_fields=['task_started_at'])
+
+    @staticmethod
+    def set_current_task(tamagotchi: TamagotchiInPossession, value: Task):
+        tamagotchi.current_task = value
+        tamagotchi.save(update_fields=['current_task'])
 
 
 class ManageUser:
@@ -161,6 +183,11 @@ class ManageUser:
     def set_is_item_selected(user: TgUser, value: bool):
         user.is_item_selected = value
         user.save(update_fields=['is_item_selected'])
+
+    @staticmethod
+    def set_last_task(user: TgUser, value: int):
+        user.last_selected_task = value
+        user.save(update_fields=['last_selected_task'])
 
 
 class KeyBoardsTemplate:
@@ -219,7 +246,7 @@ class KeyBoardsTemplate:
     @staticmethod
     def inventory_main_reply():
         markup = ReplyKeyboardMarkup(resize_keyboard=True)
-        markup.add('Посмотреть инвентарь', 'Магазин', 'Назад')
+        markup.add('Посмотреть инвентарь', 'Магазин', 'Забрать награды', 'Назад')
         return markup
 
     @staticmethod
@@ -236,6 +263,19 @@ class KeyBoardsTemplate:
         markup.add('Удалить', 'Назад')
         return markup
 
+    @staticmethod
+    def tasks_reply():
+        markup = InlineKeyboardMarkup()
+        markup.add(*map(lambda x: InlineKeyboardButton(str(x), callback_data=f'{{"user_task": {str(x.id)}}}'),
+                        Task.objects.all()))
+        return markup
+
+    @staticmethod
+    def choose_task_reply():
+        markup = ReplyKeyboardMarkup(resize_keyboard=True)
+        markup.add('Отправить на задание', 'Назад')
+        return markup
+
 
 class CallbackHandlers:
     @staticmethod
@@ -245,6 +285,9 @@ class CallbackHandlers:
         ManageUser.set_is_tamagotchi_selected(user, True)
 
         tamagotchi = TamagotchiInPossession.objects.filter(id=tamagotchi_id).first()
+
+        if tamagotchi.health <= 0:
+            ManageTamagotchi.set_is_alive(tamagotchi, False)
 
         message = f'Показатели:\n' \
                   f'Название - {tamagotchi.tamagotchi.name}\n' \
@@ -285,8 +328,8 @@ class CallbackHandlers:
     def use_item(item_id, user: TgUser):
         item = ItemInInventory.objects.filter(id=item_id).first()
         tamagotchi = TamagotchiInPossession.objects.filter(id=user.last_selected_tamagotchi).first()
-        if not user.is_tamagotchi_selected or not tamagotchi:
-            return None
+        if not user.is_tamagotchi_selected or not tamagotchi or not item:
+            return False
 
         if item.item.happiness_on_consume > 0:
             ManageTamagotchi.update_happiness(tamagotchi, item.item.happiness_on_consume)
@@ -299,6 +342,17 @@ class CallbackHandlers:
 
         if item.item.consumable:
             ManageInventory.update_quantity(item, -1)
+
+        return True
+
+    @staticmethod
+    def choose_task(task_id, user: TgUser):
+        task = Task.objects.filter(id=task_id).first()
+        ManageUser.set_last_task(user, task_id)
+        message = f'Задание - {task.name}\nВремя выполнения - {task.time_need_minutes} мин\nНаграды:\n'
+        rewards = "\n". join(map(lambda x: f'{x.item}: {x.quantity}', RewardForTask.objects.filter(task=task).all()))
+        message += rewards
+        return message
 
 
 
