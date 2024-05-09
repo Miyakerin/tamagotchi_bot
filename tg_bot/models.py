@@ -109,15 +109,25 @@ class ItemInInventory(models.Model):
 class TamagotchiInPossession(models.Model):
     tamagotchi = models.ForeignKey(Tamagotchi, on_delete=models.CASCADE)
     user_id = models.ForeignKey(TgUser, on_delete=models.CASCADE)
+
     pogonyalo = models.CharField(max_length=50, default="Null")
     health = models.IntegerField(default=100)
     hunger = models.IntegerField(default=100)
     thirst = models.IntegerField(default=100)
     happiness = models.IntegerField(default=100)
     is_alive = models.BooleanField(default=True)
+
     is_busy = models.BooleanField(default=False)
     task_started_at = models.DateTimeField(default=datetime.now(tz=timezone.utc))
     current_task = models.ForeignKey(Task, on_delete=models.CASCADE, null=True)
+
+    hunger_drop_rate_per_hour = models.IntegerField(default=4)
+    thirst_drop_rate_per_hour = models.IntegerField(default=4)
+    happiness_drop_rate_per_hour = models.IntegerField(default=4)
+    health_drop_rate_per_hour = models.IntegerField(default=4)
+    stats_update_time = models.DateTimeField(default=datetime.now(tz=timezone.utc))
+
+
 
     def __str__(self):
         return self.pogonyalo

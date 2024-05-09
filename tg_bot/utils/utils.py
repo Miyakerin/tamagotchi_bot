@@ -103,25 +103,33 @@ class ManageTamagotchi:
     @staticmethod
     def update_hunger(tamagotchi: TamagotchiInPossession, value: int):
         max_hunger = tamagotchi.tamagotchi.max_hunger
-        tamagotchi.hunger = min(value+tamagotchi.hunger, max_hunger)
+        value = min(value+tamagotchi.hunger, max_hunger)
+        value = 0 if value < 0 else value
+        tamagotchi.hunger = value
         tamagotchi.save(update_fields=['hunger'])
 
     @staticmethod
     def update_health(tamagotchi: TamagotchiInPossession, value: int):
         max_health = tamagotchi.tamagotchi.max_health
-        tamagotchi.health = min(value+tamagotchi.health, max_health)
+        value = min(value+tamagotchi.health, max_health)
+        value = 0 if value < 0 else value
+        tamagotchi.health = value
         tamagotchi.save(update_fields=['health'])
 
     @staticmethod
     def update_thirst(tamagotchi: TamagotchiInPossession, value: int):
         max_thirst = tamagotchi.tamagotchi.max_thirst
-        tamagotchi.thirst = min(value+tamagotchi.thirst, max_thirst)
+        value = min(value+tamagotchi.thirst, max_thirst)
+        value = 0 if value < 0 else value
+        tamagotchi.thirst = value
         tamagotchi.save(update_fields=['thirst'])
 
     @staticmethod
     def update_happiness(tamagotchi: TamagotchiInPossession, value: int):
         max_happiness = tamagotchi.tamagotchi.max_happiness
-        tamagotchi.happiness = min(value+tamagotchi.happiness, max_happiness)
+        value = min(value+tamagotchi.happiness, max_happiness)
+        value = 0 if value < 0 else value
+        tamagotchi.happiness = value
         tamagotchi.save(update_fields=['happiness'])
 
     @staticmethod
@@ -133,6 +141,25 @@ class ManageTamagotchi:
     def set_current_task(tamagotchi: TamagotchiInPossession, value: Task):
         tamagotchi.current_task = value
         tamagotchi.save(update_fields=['current_task'])
+
+    @staticmethod
+    def update_stats(tamagotchi: TamagotchiInPossession):
+        current_time = datetime.now(tz=timezone.utc)
+        hours_passed = int((current_time - tamagotchi.stats_update_time).total_seconds() / 3600)
+        if hours_passed > 0:
+            ManageTamagotchi.update_happiness(tamagotchi, -tamagotchi.happiness_drop_rate_per_hour*hours_passed)
+            ManageTamagotchi.update_hunger(tamagotchi, -tamagotchi.hunger_drop_rate_per_hour*hours_passed)
+            ManageTamagotchi.update_thirst(tamagotchi, -tamagotchi.thirst_drop_rate_per_hour*hours_passed)
+
+            if tamagotchi.hunger == 0 or tamagotchi.thirst == 0 or tamagotchi.happiness == 0:
+                ManageTamagotchi.update_health(tamagotchi, -tamagotchi.health_drop_rate_per_hour*hours_passed)
+                if tamagotchi.health == 0:
+                    tamagotchi.is_alive = False
+            tamagotchi.stats_update_time = current_time
+            tamagotchi.save()
+
+
+
 
 
 class ManageUser:
@@ -188,6 +215,12 @@ class ManageUser:
     def set_last_task(user: TgUser, value: int):
         user.last_selected_task = value
         user.save(update_fields=['last_selected_task'])
+
+    @staticmethod
+    def update_all_tamagotchis(user: TgUser):
+        user_tamagotchis = TamagotchiInPossession.objects.filter(user_id=user)
+        for tamagotchi in user_tamagotchis:
+            ManageTamagotchi.update_stats(tamagotchi)
 
 
 class KeyBoardsTemplate:
@@ -297,7 +330,8 @@ class CallbackHandlers:
                   f'Здоровье - {tamagotchi.health}\\{tamagotchi.tamagotchi.max_health}\n' \
                   f'Голод - {tamagotchi.hunger}\\{tamagotchi.tamagotchi.max_hunger}\n' \
                   f'Жажда - {tamagotchi.thirst}\\{tamagotchi.tamagotchi.max_thirst}\n' \
-                  f'Счастье - {tamagotchi.happiness}\\{tamagotchi.tamagotchi.max_happiness}'
+                  f'Счастье - {tamagotchi.happiness}\\{tamagotchi.tamagotchi.max_happiness}\n' \
+                  f'Занят - {"Да" if tamagotchi.is_busy else "Нет"}'
         return message, tamagotchi.is_alive
 
     @staticmethod

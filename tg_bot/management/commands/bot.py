@@ -36,6 +36,7 @@ class Command(BaseCommand):
     @bot.callback_query_handler(func=lambda call: True)
     def callback_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         json_data = json.loads(self.data)
         if json_data.get('user_tamagotchi'):
             message, is_alive = CallbackHandlers.choose_tamagotchi(json_data.get('user_tamagotchi'), tg_user)
@@ -63,6 +64,7 @@ class Command(BaseCommand):
     @bot.message_handler(regexp=r'(?:\A/back|\AНазад|\Aback)')
     def back_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_is_tamagotchi_selected(tg_user, False)
         ManageUser.set_is_item_selected(tg_user, False)
         if tg_user.last_page == 'main':
@@ -89,6 +91,7 @@ class Command(BaseCommand):
             tg_user.save()
 
         tg_user = TgUser.objects.filter(telegram_user_id=tg_user_id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_last_page(tg_user, 'main')
         ManageUser.set_is_tamagotchi_selected(tg_user, False)  # необходимое зло
         ManageUser.set_is_item_selected(tg_user, False)
@@ -101,6 +104,7 @@ class Command(BaseCommand):
         regexp=r'(?:\A/help|\AПомощь|\Ahelp_page)')  # handler команды /help, отправляет информацию о работе бота
     def help_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_last_page(tg_user, 'main')
         ManageUser.set_is_tamagotchi_selected(tg_user, False)  # необходимое зло
         ManageUser.set_is_item_selected(tg_user, False)
@@ -112,6 +116,7 @@ class Command(BaseCommand):
     @bot.message_handler(regexp=r'(?:\AТамагочи|\Atamagotchi_page)')
     def tamagotchi_page_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_last_page(tg_user, 'main')
         ManageUser.set_is_tamagotchi_selected(tg_user, False)  # необходимое зло
         ManageUser.set_is_item_selected(tg_user, False)
@@ -122,6 +127,7 @@ class Command(BaseCommand):
     @bot.message_handler(regexp=r'(?:\AИнвентарь|\Ainventory_page)')
     def inventory_page_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_last_page(tg_user, 'main')
         ManageUser.set_is_tamagotchi_selected(tg_user, False)  # необходимое зло
         ManageUser.set_is_item_selected(tg_user, False)
@@ -132,6 +138,7 @@ class Command(BaseCommand):
     @bot.message_handler(regexp=r'(?:\AЗабрать награды|\Atake_rewards)')
     def take_rewards_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_last_page(tg_user, 'main')
         ManageUser.set_is_item_selected(tg_user, False)
         ManageUser.set_is_item_selected(tg_user, False)
@@ -164,6 +171,7 @@ class Command(BaseCommand):
     @bot.message_handler(regexp=r'(?:\AПосмотреть всех|\Ashow_all_page)')
     def show_all_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_last_page(tg_user, 'main')
         ManageUser.set_is_tamagotchi_selected(tg_user, False)  # необходимое зло
         ManageUser.set_is_item_selected(tg_user, False)
@@ -182,6 +190,7 @@ class Command(BaseCommand):
         regexp=r'(?:\AНовый тамагочи|\Anewpet_page)')  # handler команды /newpet, создает тамагочи
     def newpet_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_last_page(tg_user, 'main')
         ManageUser.set_is_tamagotchi_selected(tg_user, False)  # необходимое зло
         ManageUser.set_is_item_selected(tg_user, False)
@@ -234,6 +243,7 @@ class Command(BaseCommand):
     @bot.message_handler(regexp=r'(?:\AДействия|\Aactions_page)')
     def actions_page_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_last_page(tg_user, 'tamagotchi_page')
         ManageUser.set_is_item_selected(tg_user, False)
 
@@ -243,6 +253,7 @@ class Command(BaseCommand):
     @bot.message_handler(regexp=r'(?:\AЗадачи|\Atasks_page)')
     def tasks_page_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_last_page(tg_user, 'tasks_page')
         ManageUser.set_is_item_selected(tg_user, False)
 
@@ -252,6 +263,7 @@ class Command(BaseCommand):
     @bot.message_handler(regexp=r'(?:\AОтправить на задание|\Asend_on_task_page)')
     def send_on_task_page_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_last_page(tg_user, 'tasks_page')
         ManageUser.set_is_item_selected(tg_user, False)
 
@@ -273,6 +285,7 @@ class Command(BaseCommand):
     @bot.message_handler(regexp=r'(?:\AНакормить|\Afeed_page)')
     def feed_page_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_last_page(tg_user, 'tamagotchi_page')
         ManageUser.set_is_item_selected(tg_user, False)
 
@@ -285,6 +298,7 @@ class Command(BaseCommand):
     @bot.message_handler(regexp=r'(?:\AЛечить|\Aheal_page)')
     def health_page_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_last_page(tg_user, 'tamagotchi_page')
         ManageUser.set_is_item_selected(tg_user, False)
 
@@ -297,6 +311,7 @@ class Command(BaseCommand):
     @bot.message_handler(regexp=r'(?:\AНапоить|\Athirst_page)')
     def thirst_page_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_last_page(tg_user, 'tamagotchi_page')
         ManageUser.set_is_item_selected(tg_user, False)
 
@@ -309,6 +324,7 @@ class Command(BaseCommand):
     @bot.message_handler(regexp=r'(?:\AПовеселить|\Afun_page)')
     def fun_page_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_last_page(tg_user, 'tamagotchi_page')
         ManageUser.set_is_item_selected(tg_user, False)
 
@@ -323,6 +339,7 @@ class Command(BaseCommand):
     @bot.message_handler(regexp=r'(?:\AПосмотреть инвентарь|\Ashow_inventory_page)') # handler инвентаря
     def show_inventory_page_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_last_page(tg_user, 'main')
         ManageUser.set_is_tamagotchi_selected(tg_user, False)
         ManageUser.set_is_item_selected(tg_user, False)
@@ -342,6 +359,7 @@ class Command(BaseCommand):
     @bot.message_handler(regexp=r'(?:\AУдалить|\Adelete_item_page)') # handler удаления предмета
     def delete_item_page_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_last_page(tg_user, 'show_inventory_page')
 
         if tg_user.is_item_selected:
@@ -362,12 +380,14 @@ class Command(BaseCommand):
     @bot.message_handler(regexp=r'(?:\AДать новое погоняло|\Achange_pogonyalo_page)')
     def change_pogonyalo_handler(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         ManageUser.set_last_page(tg_user, 'show_all_page')
         bot.send_message(self.chat.id, "Дайте новое погоняло(разрешается только латиница и цифры)")
 
     @bot.message_handler(regexp=r"^[a-zA-Z0-9]+$", )
     def change_pogonyalo_check(self):
         tg_user = TgUser.objects.filter(telegram_user_id=self.from_user.id).first()
+        ManageUser.update_all_tamagotchis(tg_user)
         if tg_user.last_page == 'show_all_page' and tg_user.is_tamagotchi_selected:
             tamagotchi = TamagotchiInPossession.objects.filter(id=tg_user.last_selected_tamagotchi).first()
             if len(self.text) > 50:
