@@ -1,11 +1,21 @@
+from datetime import datetime, timezone
+
 from django.db import models
 from django.contrib.auth.models import User
 
 
 class TgUser(models.Model):
-    telegram_user_id = models.BigIntegerField()
-    telegram_chat_id = models.BigIntegerField()
+    telegram_user_id = models.BigIntegerField(default=-1)
     username = models.CharField(max_length=50)
+
+    last_message = models.BigIntegerField(default=-1)
+    last_page = models.CharField(max_length=50, default='main')
+    max_tamagotchi = models.IntegerField(default=1)
+    last_selected_tamagotchi = models.IntegerField(default='-1')
+    is_tamagotchi_selected = models.BooleanField(default=False)
+    last_selected_item = models.IntegerField(default='-1')
+    is_item_selected = models.BooleanField(default=False)
+    last_selected_task = models.IntegerField(default=-1)
 
     def __str__(self):
         return self.username
@@ -52,18 +62,54 @@ class Tamagotchi(models.Model):
         return self.name
 
 
+class Action(models.Model):
+    name = models.CharField(max_length=50)
+
+    def __str__(self):
+        return str(self.name)
+
+
+class Task(models.Model):
+    name = models.CharField(max_length=50)
+    time_need_minutes = models.IntegerField(default=0)
+
+    def __str__(self):
+        return str(self.name)
+
+
+class ItemsForAction(models.Model):
+    action = models.ForeignKey(Action, on_delete=models.CASCADE)
+    item = models.ForeignKey(Item, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f'{self.action}: {self.item}'
+
+
+class RewardForTask(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE)
+    item = models.ForeignKey(Item, on_delete=models.CASCADE)
+    quantity = models.IntegerField(default=1)
+
+    def __str__(self):
+        return f'{self.task}: {self.item}: {self.quantity}'
+
+
 class ItemInInventory(models.Model):
     item = models.ForeignKey(Item, on_delete=models.CASCADE)
     user_id = models.ForeignKey(TgUser, on_delete=models.CASCADE)
     quantity = models.IntegerField(default=1)
 
     def __str__(self):
+        return str(self.item) + ": " + str(self.quantity)
+
+    def __repr__(self):
         return str(self.item) + ": " + str(self.user_id)
 
 
 class TamagotchiInPossession(models.Model):
     tamagotchi = models.ForeignKey(Tamagotchi, on_delete=models.CASCADE)
     user_id = models.ForeignKey(TgUser, on_delete=models.CASCADE)
+
     pogonyalo = models.CharField(max_length=50, default="Null")
     health = models.IntegerField(default=100)
     hunger = models.IntegerField(default=100)
@@ -71,5 +117,20 @@ class TamagotchiInPossession(models.Model):
     happiness = models.IntegerField(default=100)
     is_alive = models.BooleanField(default=True)
 
+    is_busy = models.BooleanField(default=False)
+    task_started_at = models.DateTimeField(default=datetime.now(tz=timezone.utc))
+    current_task = models.ForeignKey(Task, on_delete=models.CASCADE, null=True)
+
+    hunger_drop_rate_per_hour = models.IntegerField(default=4)
+    thirst_drop_rate_per_hour = models.IntegerField(default=4)
+    happiness_drop_rate_per_hour = models.IntegerField(default=4)
+    health_drop_rate_per_hour = models.IntegerField(default=4)
+    stats_update_time = models.DateTimeField(default=datetime.now(tz=timezone.utc))
+
+
+
     def __str__(self):
+        return self.pogonyalo
+
+    def __repr__(self):
         return str(self.tamagotchi) + ": " + str(self.user_id)
